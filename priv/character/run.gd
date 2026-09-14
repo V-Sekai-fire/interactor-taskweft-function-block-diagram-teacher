@@ -49,4 +49,16 @@ func _init() -> void:
 		return
 	out_file.store_buffer(glb)
 	out_file.close()
+
+	# Rung 2: rig the body with skin-tokens if a bundle path is supplied.
+	var st_bundle: String = args.get("skin-tokens-bundle", "")
+	if not st_bundle.is_empty():
+		var rig_out: String = args.get("rig-out", out_path)
+		var skin = SkinTokensModel.new()
+		var rig_status: int = skin.rig_file(st_bundle, out_path, rig_out, {})
+		if rig_status != 0:
+			push_error("run.gd: SkinTokensModel.rig_file returned %d" % rig_status)
+			quit(6)
+			return
+
 	quit(0)

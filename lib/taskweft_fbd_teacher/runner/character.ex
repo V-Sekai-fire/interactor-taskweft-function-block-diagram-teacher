@@ -51,7 +51,7 @@ defmodule TaskweftFbdTeacher.Runner.Character do
   def stop(%__MODULE__{}), do: :ok
 
   @impl true
-  def run(%__MODULE__{} = c, %{image: image, gguf_dir: gguf_dir, out: out}) do
+  def run(%__MODULE__{} = c, %{image: image, gguf_dir: gguf_dir, out: out} = job) do
     cond do
       not File.regular?(image) ->
         {:refused, {:no_image, image}}
@@ -59,8 +59,11 @@ defmodule TaskweftFbdTeacher.Runner.Character do
       not File.dir?(gguf_dir) ->
         {:refused, {:no_gguf_dir, gguf_dir}}
 
+      Map.has_key?(job, :skin_tokens_bundle) and not File.regular?(job.skin_tokens_bundle) ->
+        {:refused, {:no_skin_tokens_bundle, job.skin_tokens_bundle}}
+
       true ->
-        args = [
+        base = [
           "--headless",
           "--script",
           c.script,
@@ -73,9 +76,35 @@ defmodule TaskweftFbdTeacher.Runner.Character do
           Path.expand(out)
         ]
 
+        args =
+          case job do
+            %{skin_tokens_bundle: bundle} ->
+              rig_out = Map.get(job, :rig_out, out)
+
+              base ++
+                [
+                  "--skin-tokens-bundle",
+                  Path.expand(bundle),
+                  "--rig-out",
+                  Path.expand(rig_out)
+                ]
+
+            _ ->
+              base
+          end
+
         case System.cmd(c.bin, args, stderr_to_stdout: true) do
           {out_str, 0} ->
-            {:ok, %{glb_path: Path.expand(out), godot_log: out_str}}
+            {:ok,
+             %{
+               glb_path: Path.expand(out),
+               rig_path:
+                 case job do
+                   %{skin_tokens_bundle: _} -> Path.expand(Map.get(job, :rig_out, out))
+                   _ -> nil
+                 end,
+               godot_log: out_str
+             }}
 
           {out_str, code} ->
             {:refused, {:godot_exit, code, out_str}}

@@ -22,4 +22,26 @@ defmodule TaskweftFbdTeacher.Runner.CharacterTest do
   after
     :ok
   end
+
+  test "refuses when the skin-tokens bundle path is missing" do
+    scratch = System.tmp_dir!() |> Path.join("fake-godot-#{System.unique_integer([:positive])}")
+    fake_script = System.tmp_dir!() |> Path.join("fake-#{System.unique_integer([:positive])}.gd")
+    File.touch!(scratch)
+    File.touch!(fake_script)
+
+    fake_image = System.tmp_dir!() |> Path.join("img-#{System.unique_integer([:positive])}.png")
+    File.touch!(fake_image)
+    fake_gguf_dir = System.tmp_dir!() |> Path.join("gguf-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(fake_gguf_dir)
+
+    {:ok, r} = Character.start(bin: scratch, script: fake_script)
+
+    assert {:refused, {:no_skin_tokens_bundle, "/tmp/does-not-exist-bundle.gguf"}} =
+             Character.run(r, %{
+               image: fake_image,
+               gguf_dir: fake_gguf_dir,
+               out: "/tmp/out.glb",
+               skin_tokens_bundle: "/tmp/does-not-exist-bundle.gguf"
+             })
+  end
 end
