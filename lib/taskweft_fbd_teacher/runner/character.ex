@@ -62,6 +62,16 @@ defmodule TaskweftFbdTeacher.Runner.Character do
       Map.has_key?(job, :skin_tokens_bundle) and not File.regular?(job.skin_tokens_bundle) ->
         {:refused, {:no_skin_tokens_bundle, job.skin_tokens_bundle}}
 
+      Map.has_key?(job, :animate_prompt) and
+          (not is_binary(Map.get(job, :kimodo_motion_gguf)) or
+             not File.regular?(job.kimodo_motion_gguf)) ->
+        {:refused, {:no_kimodo_motion_gguf, Map.get(job, :kimodo_motion_gguf)}}
+
+      Map.has_key?(job, :animate_prompt) and
+          (not is_binary(Map.get(job, :kimodo_text_gguf)) or
+             not File.regular?(job.kimodo_text_gguf)) ->
+        {:refused, {:no_kimodo_text_gguf, Map.get(job, :kimodo_text_gguf)}}
+
       true ->
         base = [
           "--headless",
@@ -76,22 +86,48 @@ defmodule TaskweftFbdTeacher.Runner.Character do
           Path.expand(out)
         ]
 
-        args =
+        rig_args =
           case job do
             %{skin_tokens_bundle: bundle} ->
               rig_out = Map.get(job, :rig_out, out)
 
-              base ++
-                [
-                  "--skin-tokens-bundle",
-                  Path.expand(bundle),
-                  "--rig-out",
-                  Path.expand(rig_out)
-                ]
+              [
+                "--skin-tokens-bundle",
+                Path.expand(bundle),
+                "--rig-out",
+                Path.expand(rig_out)
+              ]
 
             _ ->
-              base
+              []
           end
+
+        animate_args =
+          case job do
+            %{animate_prompt: prompt} ->
+              motion = Path.expand(job.kimodo_motion_gguf)
+              text = Path.expand(job.kimodo_text_gguf)
+              adapter = job |> Map.get(:kimodo_text_adapter_gguf, "") |> to_string()
+              animate_out = Map.get(job, :animate_out, out <> ".motion.json")
+
+              [
+                "--animate-prompt",
+                prompt,
+                "--kimodo-motion-gguf",
+                motion,
+                "--kimodo-text-gguf",
+                text,
+                "--kimodo-text-adapter-gguf",
+                if(adapter == "", do: "", else: Path.expand(adapter)),
+                "--animate-out",
+                Path.expand(animate_out)
+              ]
+
+            _ ->
+              []
+          end
+
+        args = base ++ rig_args ++ animate_args
 
         case System.cmd(c.bin, args, stderr_to_stdout: true) do
           {out_str, 0} ->
@@ -102,6 +138,14 @@ defmodule TaskweftFbdTeacher.Runner.Character do
                  case job do
                    %{skin_tokens_bundle: _} -> Path.expand(Map.get(job, :rig_out, out))
                    _ -> nil
+                 end,
+               animate_path:
+                 case job do
+                   %{animate_prompt: _} ->
+                     Path.expand(Map.get(job, :animate_out, out <> ".motion.json"))
+
+                   _ ->
+                     nil
                  end,
                godot_log: out_str
              }}
