@@ -47,6 +47,27 @@ defmodule TaskweftFbdTeacher.Runner.CharacterTest do
              })
   end
 
+  test "refuses when head_glb points nowhere" do
+    scratch = System.tmp_dir!() |> Path.join("fake-godot-#{System.unique_integer([:positive])}")
+    fake_script = System.tmp_dir!() |> Path.join("fake-#{System.unique_integer([:positive])}.gd")
+    File.touch!(scratch)
+    File.touch!(fake_script)
+    fake_image = System.tmp_dir!() |> Path.join("img-#{System.unique_integer([:positive])}.png")
+    File.touch!(fake_image)
+    fake_gguf_dir = System.tmp_dir!() |> Path.join("gguf-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(fake_gguf_dir)
+
+    {:ok, r} = Character.start(bin: scratch, script: fake_script)
+
+    assert {:refused, {:no_head_glb, "/tmp/does-not-exist-head.glb"}} =
+             Character.run(r, %{
+               image: fake_image,
+               gguf_dir: fake_gguf_dir,
+               out: "/tmp/out.glb",
+               head_glb: "/tmp/does-not-exist-head.glb"
+             })
+  end
+
   test "refuses when the skin-tokens bundle path is missing" do
     scratch = System.tmp_dir!() |> Path.join("fake-godot-#{System.unique_integer([:positive])}")
     fake_script = System.tmp_dir!() |> Path.join("fake-#{System.unique_integer([:positive])}.gd")

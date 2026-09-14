@@ -72,6 +72,9 @@ defmodule TaskweftFbdTeacher.Runner.Character do
              not File.regular?(job.kimodo_text_gguf)) ->
         {:refused, {:no_kimodo_text_gguf, Map.get(job, :kimodo_text_gguf)}}
 
+      Map.has_key?(job, :head_glb) and not File.regular?(job.head_glb) ->
+        {:refused, {:no_head_glb, job.head_glb}}
+
       true ->
         base = [
           "--headless",
@@ -127,7 +130,48 @@ defmodule TaskweftFbdTeacher.Runner.Character do
               []
           end
 
-        args = base ++ rig_args ++ animate_args
+        assemble_args =
+          case job do
+            %{head_glb: head} ->
+              assembled_out = Map.get(job, :assembled_out, out <> ".assembled.glb")
+
+              [
+                "--head-glb",
+                Path.expand(head),
+                "--assembled-out",
+                Path.expand(assembled_out)
+              ]
+
+            _ ->
+              []
+          end
+
+        expressions_args =
+          case job do
+            %{expression: name} ->
+              value = Map.get(job, :expression_value, 1.0)
+              expressions_out = Map.get(job, :expressions_out, out <> ".expressions.glb")
+
+              [
+                "--expression",
+                to_string(name),
+                "--expression-value",
+                to_string(value),
+                "--expressions-out",
+                Path.expand(expressions_out)
+              ]
+
+            _ ->
+              []
+          end
+
+        render_args =
+          case job do
+            %{preview_out: preview} -> ["--preview-out", Path.expand(preview)]
+            _ -> []
+          end
+
+        args = base ++ rig_args ++ animate_args ++ assemble_args ++ expressions_args ++ render_args
 
         case System.cmd(c.bin, args, stderr_to_stdout: true) do
           {out_str, 0} ->
@@ -147,6 +191,23 @@ defmodule TaskweftFbdTeacher.Runner.Character do
                    _ ->
                      nil
                  end,
+               assembled_path:
+                 case job do
+                   %{head_glb: _} ->
+                     Path.expand(Map.get(job, :assembled_out, out <> ".assembled.glb"))
+
+                   _ ->
+                     nil
+                 end,
+               expressions_path:
+                 case job do
+                   %{expression: _} ->
+                     Path.expand(Map.get(job, :expressions_out, out <> ".expressions.glb"))
+
+                   _ ->
+                     nil
+                 end,
+               preview_path: Map.get(job, :preview_out) && Path.expand(job.preview_out),
                godot_log: out_str
              }}
 
