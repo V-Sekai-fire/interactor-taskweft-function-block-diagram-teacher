@@ -61,4 +61,32 @@ func _init() -> void:
 			quit(6)
 			return
 
+	# Rung 3: generate a motion clip through kimodo when a text prompt
+	# and the kimodo GGUFs are supplied. Writes a JSON descriptor next
+	# to --animate-out with frames, joints, and the flat float arrays;
+	# GLB retargeting is a later rung.
+	var kimodo_prompt: String = args.get("animate-prompt", "")
+	if not kimodo_prompt.is_empty():
+		var motion_gguf: String = args.get("kimodo-motion-gguf", "")
+		var text_gguf: String = args.get("kimodo-text-gguf", "")
+		var text_adapter_gguf: String = args.get("kimodo-text-adapter-gguf", "")
+		if motion_gguf.is_empty() or text_gguf.is_empty():
+			push_error("run.gd: --animate-prompt requires --kimodo-motion-gguf and --kimodo-text-gguf")
+			quit(7)
+			return
+		var animate_out: String = args.get("animate-out", out_path.get_basename() + ".motion.json")
+		var kimodo = KimodoModel.new()
+		var motion: Dictionary = kimodo.generate_motion(motion_gguf, text_gguf, text_adapter_gguf, kimodo_prompt, {})
+		if motion.is_empty():
+			push_error("run.gd: KimodoModel.generate_motion returned empty")
+			quit(8)
+			return
+		var animate_file := FileAccess.open(animate_out, FileAccess.WRITE)
+		if animate_file == null:
+			push_error("run.gd: cannot write animate out: %s" % animate_out)
+			quit(9)
+			return
+		animate_file.store_string(JSON.stringify(motion))
+		animate_file.close()
+
 	quit(0)
